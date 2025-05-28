@@ -1,0 +1,17 @@
+#tablero {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    grid-template-rows: repeat(8, 1fr);
+    width: 600px;
+    height: 600px;
+    
+    max-height: 85vh;
+    width: auto;
+
+    aspect-ratio: 1 / 1;
+}
+
+.gema {
+    width: 100%;
+    height: 100%;
+}
