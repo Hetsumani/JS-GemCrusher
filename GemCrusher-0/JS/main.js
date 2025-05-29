@@ -33,6 +33,15 @@ function clickGema(event) {
         gemaSeleccionada = gemaClicada;
     } else {
         cambiarGemas(gemaSeleccionada, gemaClicada);
+        
+        const combos = buscarCombos();
+        if (combos) {
+            // Aquí eliminas las gemas en los combos, las “caes” y rellenas
+            console.log("¡Hay combos!", combos);
+        } else {
+            // Si no hay match, puedes revertir el swap
+            console.log("No hubo match");
+        }
 
         // Limpiamos los elementos
         gemaSeleccionada.elDiv.classList.remove("seleccionada");
@@ -71,4 +80,71 @@ function cambiarGemas(gemaA, gemaB) {
     gemaB.elDiv.style.backgroundColor = gemaB.color;
     gemaA.elDiv.dataset.color = gemaA.color;
     gemaB.elDiv.dataset.color = gemaB.color;
+}
+
+function buscarCombos() {
+    const FILAS = gemas.length;
+    const COLUMNAS = gemas[0].length;
+    let matches = [];
+
+    // ----- 1. Horizontales -----
+    for (let fila = 0; fila < FILAS; fila++) {
+        let colorToMatch = gemas[fila][0].color;
+        let matchNum = 1;
+        for (let col = 1; col < COLUMNAS; col++) {
+            if (gemas[fila][col].color === colorToMatch) {
+                matchNum++;
+            } else {
+                if (matchNum >= 3) {
+                    let match = [];
+                    for (let c = col - matchNum; c < col; c++) {
+                        match.push(gemas[fila][c]);
+                    }
+                    matches.push(match);
+                }
+                colorToMatch = gemas[fila][col].color;
+                matchNum = 1;
+            }
+        }
+        // Caso especial: la fila termina con un match
+        if (matchNum >= 3) {
+            let match = [];
+            for (let c = COLUMNAS - matchNum; c < COLUMNAS; c++) {
+                match.push(gemas[fila][c]);
+            }
+            matches.push(match);
+        }
+    }
+
+    // ----- 2. Verticales -----
+    for (let col = 0; col < COLUMNAS; col++) {
+        let colorToMatch = gemas[0][col].color;
+        let matchNum = 1;
+        for (let fila = 1; fila < FILAS; fila++) {
+            if (gemas[fila][col].color === colorToMatch) {
+                matchNum++;
+            } else {
+                if (matchNum >= 3) {
+                    let match = [];
+                    for (let f = fila - matchNum; f < fila; f++) {
+                        match.push(gemas[f][col]);
+                    }
+                    matches.push(match);
+                }
+                colorToMatch = gemas[fila][col].color;
+                matchNum = 1;
+            }
+        }
+        // Caso especial: la columna termina con un match
+        if (matchNum >= 3) {
+            let match = [];
+            for (let f = FILAS - matchNum; f < FILAS; f++) {
+                match.push(gemas[f][col]);
+            }
+            matches.push(match);
+        }
+    }
+
+    // Si hay matches, regresa el arreglo, si no, regresa false
+    return matches.length > 0 ? matches : false;
 }
