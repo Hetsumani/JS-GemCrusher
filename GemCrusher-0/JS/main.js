@@ -51,35 +51,24 @@ function clickGema(event) {
 }
 
 function cambiarGemas(gemaA, gemaB) {
-    // Guarda sus posiciones originales
-    const filaA = gemaA.fila;
-    const colA = gemaA.columna;
-    const filaB = gemaB.fila;
-    const colB = gemaB.columna;
+  // Guarda posiciones originales
+  const [filaA, colA] = [gemaA.fila, gemaA.columna];
+  const [filaB, colB] = [gemaB.fila, gemaB.columna];
 
-    // Swap en la matriz lógica
-    gemas[filaA][colA] = gemaB;
-    gemas[filaB][colB] = gemaA;
+  // 1. Intercambia posiciones en la matriz
+  [gemas[filaA][colA], gemas[filaB][colB]] = [gemas[filaB][colB], gemas[filaA][colA]];
 
-    // Intercambia propiedades internas
-    [gemaA.fila, gemaB.fila] = [filaB, filaA];
-    [gemaA.columna, gemaB.columna] = [colB, colA];
+  // 2. Actualiza coordenadas internas
+  [gemaA.fila, gemaB.fila] = [filaB, filaA];
+  [gemaA.columna, gemaB.columna] = [colB, colA];
 
-    // Actualiza los datasets y colores en el DOM
-    gemaA.elDiv.dataset.fila = gemaA.fila;
-    gemaA.elDiv.dataset.columna = gemaA.columna;
-    gemaB.elDiv.dataset.fila = gemaB.fila;
-    gemaB.elDiv.dataset.columna = gemaB.columna;
+  // 3. Sincroniza datasets (solo fila/columna)
+  gemaA.elDiv.dataset.fila = gemaA.fila;
+  gemaA.elDiv.dataset.columna = gemaA.columna;
+  gemaB.elDiv.dataset.fila = gemaB.fila;
+  gemaB.elDiv.dataset.columna = gemaB.columna;
 
-    // Intercambia los colores visualmente
-    const colorA = gemaA.color;
-    gemaA.color = gemaB.color;
-    gemaB.color = colorA;
-
-    gemaA.elDiv.style.backgroundColor = gemaA.color;
-    gemaB.elDiv.style.backgroundColor = gemaB.color;
-    gemaA.elDiv.dataset.color = gemaA.color;
-    gemaB.elDiv.dataset.color = gemaB.color;
+  // ¡Nada de intercambiar colores!
 }
 
 function buscarCombos() {
