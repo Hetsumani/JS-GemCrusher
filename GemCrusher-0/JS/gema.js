@@ -6,11 +6,9 @@ export class Gema {
 
         // Generar elementos
         this.elDiv = document.createElement("div");
-        this.elDiv.classList.add("gema");
-        this.elDiv.style.backgroundColor = color;
+        this.elDiv.classList.add("gema", color);
         this.elDiv.dataset.fila = fila;
-        this.elDiv.dataset.columna = columna;
-        this.elDiv.dataset.color = color;
+        this.elDiv.dataset.columna = columna;        
     }
 
     /**
@@ -37,5 +35,5 @@ export class Gema {
         this.elDiv.style.gridRowStart = fila + 1;
         this.elDiv.style.gridColumnStart = col + 1;
     }
-
 }
+

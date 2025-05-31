@@ -16,6 +16,30 @@
     height: 100%;
 }
 
+.gema--red{
+    background-color: red;
+}
+
+.gema--purple{
+    background-color: purple;
+}
+
+.gema--yellow{
+    background-color: yellow;
+}
+
+.gema--blue{
+    background-color: blue;
+}
+
+.gema--green{
+    background-color: green;
+}
+
+.gema--orange{
+    background-color: orange;
+}
+
 .seleccionada{
     opacity: 0.5;
 }
