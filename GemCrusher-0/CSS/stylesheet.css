@@ -43,3 +43,7 @@
 .seleccionada{
     opacity: 0.5;
 }
+
+.gema--matada{
+    opacity: 0;
+}
