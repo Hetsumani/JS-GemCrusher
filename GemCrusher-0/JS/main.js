@@ -1,34 +1,70 @@
+/*───────────────────────────────  Configuración básica  ───────────────────────────────*/
+
+// Importamos la clase Gema que define la “vista-modelo” de cada celda del tablero
 import { Gema } from "./gema.js";
+
+// Referencia al contenedor HTML (<div id="tablero">) donde se pintarán las gemas
 const tablero = document.getElementById("tablero");
 
+// Dimensiones del tablero (filas y columnas) → 8×8 estilo clásico “match-3”
 const FILAS = 8;
 const COLUMNAS = 8;
 
-let colores = ["gema--red", "gema--purple", "gema--yellow", "gema--blue", "gema--green", "gema--orange"];
+// Clases CSS que representan los distintos colores de gemas disponibles
+// (deben existir en stylesheet.css con estilos de fondo / sprite correspondientes)
+const colores = [
+    "gema--red",
+    "gema--purple",
+    "gema--yellow",
+    "gema--blue",
+    "gema--green",
+    "gema--orange"
+];
 
+/*───────────────────────────────  Estado del juego  ───────────────────────────────*/
+
+// Matriz lógica [fila][columna] que guarda SOLO el color de cada gema
+// (mantiene la “verdad” del juego; el DOM se actualiza en función de esta)
 let tableroLogico = [];
+
+// Referencia a la gema actualmente seleccionada por el jugador (o null si ninguna)
 let seleccionada = null;
 
+// Array que guarda las coordenadas de gemas que forman un combo encontrado
+//   Ej. combos = [[2,4], [2,5], [2,6]]  → tres gemas horizontales en fila 2
 let combos = [];
 
+
+/*───────────────────────────────────────────────────────────────
+ * 1. Poblado inicial del tablero lógico
+ *    - Creamos una matriz `tableroLogico` de tamaño FILAS × COLUMNAS
+ *    - Asignamos un color aleatorio permitido a cada celda
+ *    - Repetimos todo el llenado si al terminar se detecta
+ *      al menos un combo, para garantizar que el tablero inicial
+ *      NO tenga grupos de 3+ gemas adyacentes.
+ *───────────────────────────────────────────────────────────────*/
 do {
-    for (let i = 0; i < FILAS; i++) {
-        tableroLogico[i] = [];
-        for (let j = 0; j < COLUMNAS; j++) {
-            let color = Math.floor(Math.random() * colores.length);
-            tableroLogico[i][j] = colores[color];
+    for (let i = 0; i < FILAS; i++) {          // Recorre las filas
+        tableroLogico[i] = [];                 // Prepara fila vacía
+        for (let j = 0; j < COLUMNAS; j++) {   // Recorre las columnas
+            const idxColor = Math.floor(Math.random() * colores.length);
+            tableroLogico[i][j] = colores[idxColor]; // Color aleatorio
         }
     }
-} while (buscarCombos().length > 0); // Asegurarse de que no haya combos al inicio
+} while (buscarCombos().length > 0);           // Reintentamos si hay matches
 
-// Crear las gemas (DIV) y agregarlas al tablero
-// Cada gema es un objeto Gema
-// y se le asigna un evento de click para manejar la selección y el cambio
+/*───────────────────────────────────────────────────────────────
+ * 2. Creación de elementos visuales (<div.gema>)
+ *    - Por cada celda del tablero lógico instanciamos un objeto Gema
+ *    - Su constructor genera el <div> con la clase de color correspondiente
+ *    - Añadimos un listener de clic que delega en `clickGema`
+ *    - Insertamos el nodo en el contenedor `tablero`
+ *───────────────────────────────────────────────────────────────*/
 for (let i = 0; i < FILAS; i++) {
     for (let j = 0; j < COLUMNAS; j++) {
-        let gema = new Gema(i, j, tableroLogico[i][j]);
-        gema.elDiv.addEventListener('click', clickGema);
-        tablero.appendChild(gema.elDiv);
+        const gema = new Gema(i, j, tableroLogico[i][j]); // modelo + vista
+        gema.elDiv.addEventListener("click", clickGema);  // interacción
+        tablero.appendChild(gema.elDiv);                  // al DOM
     }
 }
 
@@ -51,45 +87,84 @@ for (let i = 0; i < FILAS; i++) {
  *    • `borrarCombos()`     : Marca en la lógica y refresca el DOM.
  */
 function clickGema(event) {
-  const gema = event.target; // Nodo HTML sobre el que se hizo clic
+    const gema = event.target; // Nodo HTML sobre el que se hizo clic
 
-  /*────────────────────────────────────────────────────────────
-   * 1. Caso: el jugador hace clic en la misma gema por segunda vez
-   *    → se cancela la selección.
-   *───────────────────────────────────────────────────────────*/
-  if (gema.classList.contains("seleccionada")) {
-    gema.classList.remove("seleccionada");
-    seleccionada = null;          // Nada está seleccionado
+    /*────────────────────────────────────────────────────────────
+     * 1. Caso: el jugador hace clic en la misma gema por segunda vez
+     * → se cancela la selección.
+     *───────────────────────────────────────────────────────────*/
+    if (gema.classList.contains("seleccionada")) { //
+        gema.classList.remove("seleccionada"); //
+        seleccionada = null; // Nada está seleccionado
 
-  /*────────────────────────────────────────────────────────────
-   * 2. Caso: ya hay una gema seleccionada distinta
-   *    → intentamos intercambiar y resolver el turno.
-   *───────────────────────────────────────────────────────────*/
-  } else if (seleccionada) {
-    // ❶ Intercambio de posiciones (en DOM y en matriz lógica)
-    cambiarGemas(seleccionada, gema);
+        /*────────────────────────────────────────────────────────────
+         * 2. Caso: ya hay una gema seleccionada distinta ('seleccionada')
+         * y se ha hecho clic en una nueva ('gema').
+         * → intentamos intercambiarlas y resolver el turno.
+         *───────────────────────────────────────────────────────────*/
+    } else if (seleccionada) { //
+        const filaGemaActual = parseInt(gema.dataset.fila);
+        const colGemaActual = parseInt(gema.dataset.columna);
+        const filaGemaSeleccionada = parseInt(seleccionada.dataset.fila);
+        const colGemaSeleccionada = parseInt(seleccionada.dataset.columna);
 
-    // ❷ Detección de combos tras el intercambio
-    combos = buscarCombos();
+        // Verificar si son adyacentes (misma columna y filas contiguas, O misma fila y columnas contiguas)
+        const esAdyacente =
+            (colGemaActual === colGemaSeleccionada && Math.abs(filaGemaActual - filaGemaSeleccionada) === 1) ||
+            (filaGemaActual === filaGemaSeleccionada && Math.abs(colGemaActual - colGemaSeleccionada) === 1);
 
-    // ❸ Si hubo matches, procede a borrarlos
-    if (combos.length > 0) {
-      console.log("Se borrarán combos");
-      borrarCombos();
+        if (esAdyacente) {
+            // ❶ Intercambio de posiciones (en DOM y en matriz lógica)
+            cambiarGemas(seleccionada, gema); //
+
+            // ❷ Detección de combos tras el intercambio
+            let combosDetectados = buscarCombos(); //
+
+            if (combosDetectados.length > 0) {
+                // ✅ Jugada válida: El intercambio formó combos.
+                combos = combosDetectados; // Actualizar la variable global de combos
+
+                // ❸ Procesar combos en cascada: Mientras haya combos, los eliminamos y hacemos caer nuevas gemas.
+                while (combos.length > 0) { //
+                    console.log("Se borrarán combos");
+                    borrarCombos(); //
+                    bajarGemas();   // Llama a la función que hace caer las gemas y rellena
+                    combos = buscarCombos(); // Buscar nuevos combos después de la caída y relleno
+                }
+
+                // ❹ Limpieza de estado de selección tras efectuar la jugada válida
+                seleccionada.classList.remove("seleccionada"); //
+                seleccionada = null; //
+
+            } else {
+                // ❌ Jugada inválida: El intercambio no formó combos. Revertir.
+                console.log("Intercambio no formó combos. Revirtiendo.");
+                cambiarGemas(gema, seleccionada); // Intercambia de nuevo para revertir al estado original
+
+                // Política de selección después de un intento inválido:
+                // Deseleccionar la primera gema y seleccionar la segunda (la que se intentó mover).
+                // Esto da al jugador la sensación de que su último clic es el que tiene el foco.
+                seleccionada.classList.remove("seleccionada");
+                gema.classList.add("seleccionada");
+                seleccionada = gema;
+            }
+        } else {
+            // No son adyacentes.
+            // Política común: Deseleccionar la gema previamente seleccionada ('seleccionada')
+            // y seleccionar la nueva gema clicada ('gema').
+            seleccionada.classList.remove("seleccionada");
+            gema.classList.add("seleccionada");
+            seleccionada = gema;
+        }
+
+        /*────────────────────────────────────────────────────────────
+         * 3. Caso: no había gema previa seleccionada
+         * → marcamos la actual para un posible intercambio posterior.
+         *───────────────────────────────────────────────────────────*/
+    } else {
+        gema.classList.add("seleccionada"); //
+        seleccionada = gema; //
     }
-
-    // ❹ Limpieza de estado de selección tras efectuar la jugada
-    seleccionada.classList.remove("seleccionada");
-    seleccionada = null;
-
-  /*────────────────────────────────────────────────────────────
-   * 3. Caso: no había gema previa seleccionada
-   *    → marcamos la actual para un posible intercambio posterior.
-   *───────────────────────────────────────────────────────────*/
-  } else {
-    gema.classList.add("seleccionada");
-    seleccionada = gema;
-  }
 }
 
 
@@ -118,154 +193,153 @@ function clickGema(event) {
  */
 function cambiarGemas(gema1, gema2) {
 
-  /*───────────────────────────────────
-   * 1. Extraer posiciones y colores
-   *───────────────────────────────────*/
-  const fila1  = gema1.dataset.fila;       // Índice de fila (string → OK para acceso)
-  const col1   = gema1.dataset.columna;    // Índice de columna
-  const color1 = gema1.dataset.color;      // Clase CSS de color actual
+    /*───────────────────────────────────
+     * 1. Extraer posiciones y colores
+     *───────────────────────────────────*/
+    const fila1 = gema1.dataset.fila;       // Índice de fila (string → OK para acceso)
+    const col1 = gema1.dataset.columna;    // Índice de columna
+    const color1 = gema1.dataset.color;      // Clase CSS de color actual
 
-  const fila2  = gema2.dataset.fila;
-  const col2   = gema2.dataset.columna;
-  const color2 = gema2.dataset.color;
+    const fila2 = gema2.dataset.fila;
+    const col2 = gema2.dataset.columna;
+    const color2 = gema2.dataset.color;
 
-  /*───────────────────────────────────
-   * 2. Intercambiar colores en el DOM
-   *───────────────────────────────────*/
-  //   gema1 toma el color de gema2
-  gema1.classList.replace(color1, color2); // quita color1 y pone color2 en un solo paso
-  gema1.dataset.color = color2;            // actualiza atributo data-color
+    /*───────────────────────────────────
+     * 2. Intercambiar colores en el DOM
+     *───────────────────────────────────*/
+    //   gema1 toma el color de gema2
+    gema1.classList.replace(color1, color2); // quita color1 y pone color2 en un solo paso
+    gema1.dataset.color = color2;            // actualiza atributo data-color
 
-  //   gema2 toma el color de gema1
-  gema2.classList.replace(color2, color1);
-  gema2.dataset.color = color1;
+    //   gema2 toma el color de gema1
+    gema2.classList.replace(color2, color1);
+    gema2.dataset.color = color1;
 
-  /*───────────────────────────────────
-   * 3. Sincronizar la matriz lógica
-   *───────────────────────────────────*/
-  tableroLogico[fila1][col1] = color2;     // Posición (fila1,col1) ahora es color2
-  tableroLogico[fila2][col2] = color1;     // Posición (fila2,col2) ahora es color1
+    /*───────────────────────────────────
+     * 3. Sincronizar la matriz lógica
+     *───────────────────────────────────*/
+    tableroLogico[fila1][col1] = color2;     // Posición (fila1,col1) ahora es color2
+    tableroLogico[fila2][col2] = color1;     // Posición (fila2,col2) ahora es color1
 }
 
 
+/****************************************************************************************
+ * buscarCombos()
+ * -----------------------------------------------------------------------------
+ * Recorre el tablero lógico y devuelve un arreglo con TODAS las coordenadas que
+ * forman parte de un “combo” (3 o más gemas contiguas del mismo color) tanto en
+ * horizontal como en vertical.  Los combos se devuelven como pares [fila, col].
+ *
+ * Flujo:
+ *   1. Llama a busquedaHorizontal() para añadir combos horizontales a `combos`.
+ *   2. Llama a busquedaVertical()   para añadir combos verticales   a `combos`.
+ *   3. Elimina duplicados (una gema puede pertenecer a un combo vertical y a
+ *      uno horizontal a la vez) y devuelve el arreglo resultante.
+ ****************************************************************************************/
 function buscarCombos() {
-    let combos = []; // Almacena todos los combos encontrados
+    let combos = [];                 // ← se irán acumulando aquí
 
-    // Búsqueda de combos horizontales
+    // 1. Explorar filas   (izq→der)
     busquedaHorizontal(combos);
 
-    // Búsqueda de combos verticales
+    // 2. Explorar columnas (arriba→abajo)
     busquedaVertical(combos);
 
-    // Eliminar duplicados: convertimos a JSON para comparar y luego de vuelta a objeto
-    // Esto asegura que cada combo sea único en el arreglo final   
-    // Más eficiente que dejar los duplicados, aunque estos no afecten la lógica del juego.
+    // 3. Quitar duplicados: serializamos cada par con JSON.stringify,
+    //    aplicamos un Set, y luego deserializamos.
     const unicos = [...new Set(combos.map(JSON.stringify))].map(JSON.parse);
     return unicos;
 }
 
+/****************************************************************************************
+ * busquedaVertical(combos)
+ * -----------------------------------------------------------------------------
+ * Detecta cadenas verticales de 3 o más gemas iguales y añade sus coordenadas
+ * al arreglo `combos` recibido por referencia.
+ ****************************************************************************************/
 function busquedaVertical(combos) {
-    // Iteramos por cada COLUMNA primero
+    // Recorremos cada COLUMNA por separado
     for (let j = 0; j < COLUMNAS; j++) {
-        // Inicializamos la referencia y la longitud de la cadena para la COLUMNA actual
-        let referencia = null;
-        let cadena = 0;
 
-        // Luego, iteramos por cada FILA dentro de la columna actual (de arriba hacia abajo)
+        let referencia = null;   // color de la gema que “lidera” la cadena actual
+        let cadena = 0;      // longitud de la cadena vertical en curso
+
+        // Recorremos las FILAS de arriba hacia abajo
         for (let i = 0; i < FILAS; i++) {
-            if (i == 0) {
-                // Es el primer elemento de la columna actual (fila superior)
+            if (i === 0) {
+                // Primer elemento de la columna ⇒ establecemos referencia
                 referencia = tableroLogico[i][j];
                 cadena = 1;
-                // console.log(`Columna ${j}: Referencia inicial: ${referencia} en [${i},${j}]`);
             } else {
-                // Elementos subsiguientes en la columna actual
-                if (tableroLogico[i][j] == referencia) {
-                    // El elemento actual coincide con el de arriba, la cadena vertical aumenta
+                if (tableroLogico[i][j] === referencia) {
+                    // Mismo color ⇒ extendemos la cadena
                     cadena++;
-                    // console.log(`Cadena V incrementada: ${cadena} en [${i},${j}]`);
                 } else {
-                    // El elemento no coincide, la cadena vertical se rompió.
-                    // Verificamos si la cadena que acaba de terminar era un combo.
+                    // Color distinto ⇒ evaluamos la cadena que acaba de terminar
                     if (cadena >= 3) {
-                        // console.log(`Combo V (por cambio) detectado en columna ${j}, terminando en fila ${i-1}. Longitud: ${cadena}`);
+                        // Añadimos todas las gemas de la cadena al arreglo de combos
                         for (let k = 0; k < cadena; k++) {
-                            // La cadena terminó en la fila i-1.
-                            // Los elementos son [i-1, j], [i-2, j], ..., [(i-1)-(cadena-1), j]
-                            const elemento = [(i - 1) - k, j]; // (filaAnterior - k, columnaActual)
-                            combos.push(elemento);
-                            console.log(`Combo V añadido: ${elemento}`);
+                            combos.push([(i - 1) - k, j]); // desde la gema anterior hacia arriba
                         }
                     }
-                    // Reiniciamos la referencia y la cadena para el nuevo elemento
+                    // Reiniciamos referencia y longitud para el nuevo color
                     referencia = tableroLogico[i][j];
                     cadena = 1;
-                    // console.log(`Nueva referencia V: ${referencia} en [${i},${j}]`);
                 }
             }
         }
 
-        // Al finalizar la iteración de todas las filas en la columna actual,
-        // verificamos si la última cadena formada llegó al final de la columna y es un combo.
+        // Al terminar la columna confirmamos si la última cadena (hasta el borde)
+        // también constituye un combo.
         if (cadena >= 3) {
-            // console.log(`Combo V (fin de columna) detectado en columna ${j}, terminando en fila ${FILAS-1}. Longitud: ${cadena}`);
             for (let k = 0; k < cadena; k++) {
-                // La cadena terminó en la última fila (FILAS-1).
-                // Los elementos son [FILAS-1, j], [FILAS-2, j], ..., [(FILAS-1)-(cadena-1), j]
-                const elemento = [(FILAS - 1) - k, j]; // (ultimaFila - k, columnaActual)
-                combos.push(elemento);
-                console.log(`Combo V añadido (fin de columna): ${elemento}`);
+                combos.push([(FILAS - 1) - k, j]);
             }
         }
     }
 }
 
+/****************************************************************************************
+ * busquedaHorizontal(combos)
+ * -----------------------------------------------------------------------------
+ * Detecta cadenas horizontales de 3 o más gemas iguales y añade sus coordenadas
+ * al arreglo `combos` recibido por referencia.
+ ****************************************************************************************/
 function busquedaHorizontal(combos) {
+    // Recorremos cada FILA por separado
     for (let i = 0; i < FILAS; i++) {
-        // Inicializar referencia y cadena para CADA fila
-        let referencia = null;
-        let cadena = 0;
 
+        let referencia = null;  // color que encabeza la cadena horizontal
+        let cadena = 0;     // longitud de la cadena
+
+        // Recorremos las COLUMNAS de izquierda a derecha
         for (let j = 0; j < COLUMNAS; j++) {
-            if (j == 0) {
-                // Primer elemento de la fila
+            if (j === 0) {
+                // Primer elemento de la fila ⇒ nueva referencia
                 referencia = tableroLogico[i][j];
                 cadena = 1;
-                // console.log(`Fila ${i}: Referencia inicial: ${referencia}`);
             } else {
-                // Elementos subsiguientes de la fila
-                if (tableroLogico[i][j] == referencia) {
+                if (tableroLogico[i][j] === referencia) {
+                    // Mismo color ⇒ extendemos la cadena
                     cadena++;
-                    // console.log(`Cadena incrementada: ${cadena} en [${i},${j}]`);
                 } else {
-                    // El color cambió, la cadena se rompió.
-                    // ¿La cadena anterior era un combo?
+                    // Color distinto ⇒ evaluamos posible combo
                     if (cadena >= 3) {
-                        // console.log(`Combo H (por cambio) detectado en fila ${i}, terminando en columna ${j-1}. Longitud: ${cadena}`);
                         for (let k = 0; k < cadena; k++) {
-                            // La cadena terminó en j-1. Los elementos son (j-1), (j-2), ..., (j-cadena)
-                            const elemento = [i, (j - 1) - k];
-                            combos.push(elemento);
-                            console.log(`Combo H añadido: ${elemento}`);
+                            combos.push([i, (j - 1) - k]); // desde la gema anterior hacia la izq.
                         }
                     }
-                    // Reiniciar para la nueva referencia
+                    // Reiniciamos referencia y longitud
                     referencia = tableroLogico[i][j];
                     cadena = 1;
-                    // console.log(`Nueva referencia: ${referencia} en [${i},${j}]`);
                 }
             }
         }
 
-        // Al finalizar la fila, verificar si la última cadena formó un combo
-        // Esto es crucial si la fila termina con un combo (ej: A A A)
+        // Fin de fila: comprobamos si la cadena llega hasta el borde
         if (cadena >= 3) {
-            // console.log(`Combo H (fin de fila) detectado en fila ${i}, terminando en columna ${COLUMNAS-1}. Longitud: ${cadena}`);
             for (let k = 0; k < cadena; k++) {
-                // La cadena terminó en COLUMNAS-1. Los elementos son (COLUMNAS-1), (COLUMNAS-2), ...
-                const elemento = [i, (COLUMNAS - 1) - k];
-                combos.push(elemento);
-                console.log(`Combo H añadido (fin de fila): ${elemento}`);
+                combos.push([i, (COLUMNAS - 1) - k]);
             }
         }
     }
@@ -309,48 +383,199 @@ function borrarCombos() {
 }
 
 /**
- * Sincroniza el DOM con la matriz lógica `tableroLogico`.
- * ────────────────────────────────────────────────────────
- *   1. Recorre todas las gemas que existen en el tablero (nodos .gema).
- *   2. Para cada gema:
- *        a. Lee su posición lógica (data-fila, data-columna).
- *        b. Busca el color “real” en la matriz `tableroLogico`.
- *        c. Actualiza las clases CSS y el atributo data-color
- *           para que la representación visual coincida con la lógica.
- *   3. Si la gema está marcada como "gema--matada", se le asigna esa clase
- *      para desencadenar la animación de destrucción (opacidad, escala, etc.).
- *      En caso contrario, se asegura de que la gema tenga el color correcto.
+ * actualizarTablero()
+ * -----------------------------------------------------------------------------
+ * Mantiene sincronizada la parte visual (<div class="gema">) con la matriz
+ * `tableroLogico`. Debe ejecutarse SIEMPRE que cambie el estado del juego,
+ * ya sea tras eliminar combos, bajar gemas o generar piezas nuevas.
+ *
+ * Flujo general:
+ *   1.  Seleccionar TODAS las gemas que existen actualmente en el DOM.
+ *   2.  Para cada gema:
+ *       a.  Leer su posición (fila, columna) desde los atributos data-*.
+ *       b.  Obtener en `tableroLogico` el color que debería tener.
+ *       c.  Aplicar los cambios de clase y animación necesarios
+ *           - “gema--matada”  → anima la desaparición.
+ *           - Color normal    → actualiza clase y, si reaparece, anima pop-in.
  */
 function actualizarTablero() {
-    // ❶ Selecciona todas las gemas del DOM dentro del contenedor `tablero`
+    /* ❶ Selección estática de todos los nodos .gema dentro del contenedor
+     *    `tablero`.  querySelectorAll devuelve un NodeList “vivo” *en el
+     *    momento de la llamada*; si más gemas aparecen luego, habrá que
+     *    llamar de nuevo a actualizarTablero para reflejarlo. */
     const gemas = tablero.querySelectorAll(".gema");
 
-    // ❷ Recorre Nodelist con forEach: una iteración por cada gema
+    /* ❷ Recorremos el NodeList.  forEach es seguro porque NodeList implementa
+     *    la interfaz Iterable; no es necesario convertirlo a Array. */
     gemas.forEach((gema) => {
-        // ❷a. Posición de la gema en la matriz lógica (strings → se usan como índices)
-        const fila = gema.dataset.fila;
-        const columna = gema.dataset.columna;
 
-        // ❷b. Color “verdadero” de la gema según la lógica del juego
+        /* ❷a Fila y columna vienen como *strings* desde data-attributes;
+         *     JavaScript los acepta como índices de array sin convertirlos,
+         *     pero si se quisiera hacer aritmética habría que usar Number(). */
+        const fila     = gema.dataset.fila;
+        const columna  = gema.dataset.columna;
+
+        /* ❷b Color “de verdad” que debería tener la gema de acuerdo con la
+         *     lógica del juego.  En tu implementación, “gema--matada” actúa
+         *     como un SENTRY para un hueco vacío pendiente de rellenarse. */
         const color = tableroLogico[fila][columna];
 
-        /* ❷c. Sincronización visual
-           ────────────────────────
-           Si la gema fue marcada como "gema--matada" en la lógica, significa:
-             • Debe mostrarse como eliminada (por ejemplo, con fade-out).
-             • Se conserva en el DOM hasta que termine la animación o cascada.
-           De lo contrario, se asegura que luzca con su color actual.
-        */
+        /* ❷c Sincronización visual
+         * ---------------------------------------------------------------
+         * Dos casos: la celda está vacía (“gema--matada”) o tiene un color
+         * válido.  En ambos, se actualiza:
+         *   - classList        → para que el CSS pinte el color correcto
+         *   - dataset.color    → para no perder el estado al siguiente ciclo
+         */
+
+        /* CASO 1 — Desaparición de la gema (pop-out corto) */
         if (color === "gema--matada") {
-            // -- Estado de gema eliminada --
-            gema.classList.remove(gema.dataset.color); // quita color anterior
-            gema.classList.add("gema--matada");        // aplica estilo de muerte
-            gema.dataset.color = "gema--matada";       // persiste el nuevo estado
-        } else {
-            // -- Estado normal: colorear correctamente --
-            gema.classList.remove("gema--matada");     // por si estaba marcada antes
-            gema.classList.replace(gema.dataset.color, color); // swap de clase de color
-            gema.dataset.color = color;                // actualiza el atributo de color
+            // Elimina la clase de color actual (rojo, verde, etc.)
+            gema.classList.remove(gema.dataset.color);
+
+            // Añade la clase que dispara la animación @keyframes pop-out
+            gema.classList.add("gema--matada");
+
+            // Guarda el nuevo “color” en el dataset para futuras lecturas
+            gema.dataset.color = "gema--matada";
+        }
+
+        /* CASO 2 — Hay un color normal en la celda */
+        else {
+            const colorAnterior = gema.dataset.color;          // antes del update
+            const reaparece     = colorAnterior === "gema--matada";
+            //      ^ true cuando la gema venía de un hueco vacío y “renace”
+
+            // 1) En caso de que la gema estuviera marcada como matada,
+            //    quitamos esa clase para que el CSS vuelva a colorearla.
+            gema.classList.remove("gema--matada");
+
+            // 2) Sustituimos la clase de color viejo por el nuevo.
+            //    Nota: replace no hace nada si colorAnterior == color.
+            gema.classList.replace(colorAnterior, color);
+
+            // 3) Aseguramos ID: si por algún motivo la gema no tenía
+            //    la clase de destino (p. ej. cambio manual en DevTools),
+            //    la volvemos a añadir.
+            gema.classList.add(color);
+
+            // 4) Persistimos el color en el dataset
+            gema.dataset.color = color;
+
+            /* Animación “pop-in” — sólo si la gema reaparece tras haber sido
+             * eliminada.  Se realiza con un pequeño truco:
+             *     - Se fija transform:scale(0.3) SIN transición.
+             *     - requestAnimationFrame() espera un *tick* de render.
+             *     - En el siguiente frame se añade la transición y se escala
+             *       a 1, logrando un efecto suave sin parpadeos.
+             */
+            if (reaparece) {
+                gema.style.transform = "scale(0.3)"; // estado inicial
+
+                requestAnimationFrame(() => {
+                    // Activamos la transición justo después del primer layout
+                    gema.style.transition = "transform .2s ease-out";
+                    gema.style.transform  = "scale(1)";           // destino
+
+                    // Limpieza: quitamos la transición cuando acabe para que
+                    // futuras transformaciones (caídas, etc.) no se encadenen.
+                    gema.addEventListener(
+                        "transitionend",
+                        () => (gema.style.transition = ""),
+                        { once: true }      // se auto-destruye tras dispararse
+                    );
+                });
+            }
         }
     });
 }
+
+
+/**
+ * bajarGemas()
+ * -----------------------------------------------------------------------------
+ * “Hace caer” las gemas en la matriz `tableroLogico` hasta rellenar todos los
+ * huecos marcados como "gema--matada".  Después sincroniza el DOM y aplica la
+ * animación de caída a cada gema que realmente se desplazó.
+ *
+ *   - Trabaja **solo** sobre la matriz lógica; el DOM se refresca con
+ *     `actualizarTablero()`.
+ *   - El algoritmo recorre cada columna de abajo hacia arriba; cuando
+ *     encuentra un hueco, *“sube”* todo lo que está arriba una fila.
+ *   - Para cada gema que se mueve registra cuántos pasos (filas) cae, de modo
+ *     que más tarde se pueda animar con CSS usando la custom property --pasos.
+ */
+function bajarGemas() {
+    /* Array de movimientos que luego serán animados.
+     * Cada entrada → { nodo: <div.gema>, pasos: <int> }
+     * Si no localizamos el nodo (p.ej. no existe todavía en el DOM),
+     * lo ignoraremos más adelante. */
+    const movimientos = [];
+
+    /* ❶-❷ Recorrido por columnas (j) y filas (i) de abajo ↑ arriba.
+     *     Empieza en la última fila (FILAS - 1) para que los huecos
+     *     absorban inmediatamente lo que hay encima. */
+    for (let j = 0; j < COLUMNAS; j++) {
+        for (let i = FILAS - 1; i >= 0; i--) {
+
+            /* Mientras permanezca un hueco en (i,j) seguimos “tirando” de todo
+             * lo que esté encima.  Un solo while evita múltiples pasadas. */
+            while (tableroLogico[i][j] === "gema--matada") {
+
+                /* ❸ Bucle interno que desplaza una columna entera UNA FILA:
+                 *     k reemplaza celda (k,j) con el valor de (k-1,j). */
+                for (let k = i; k >= 0; k--) {
+
+                    /* k === 0 → hemos llegado al borde superior.
+                     * Creamos una gema ESPECIAL: color nuevo aleatorio. */
+                    if (k === 0) {
+                        const idx = Math.floor(Math.random() * colores.length);
+                        tableroLogico[0][j] = colores[idx];
+                    } else {
+                        // Copia la gema (o hueco) superior hacia abajo
+                        tableroLogico[k][j] = tableroLogico[k - 1][j];
+
+                        /* ► Registro para animación:
+                         *    Solo lo hacemos si la celda (k-1,j) *contenía*
+                         *    una gema real (≠ "gema--matada"), es decir,
+                         *    un elemento visible que se moverá. */
+                        if (tableroLogico[k - 1][j] !== "gema--matada") {
+                            const nodo = tablero.querySelector(
+                                `.gema[data-fila='${k - 1}'][data-columna='${j}']`
+                            );
+                            /* Cada “salto” de una gema en este bucle mueve
+                             * exactamente UNA fila ⇒ pasos = 1.  Si en tu
+                             * versión futura optimizas varios saltos de una
+                             * vez, acumula en `pasos` el desplazamiento real. */
+                            movimientos.push({ nodo, pasos: 1 });
+                        }
+                    }
+                } // fin for k
+            } // fin while hueco
+        }
+    }
+
+    /* ❹ La matriz lógica ya está lista, ahora actualizamos el DOM.
+     *     Aquí es donde las .gema reciben sus nuevas grid-row/col. */
+    actualizarTablero();
+
+    /* ❺ Se dispara la animación “drop” en cada gema desplazada.
+     *     La animación usa la variable CSS --pasos para saber
+     *     cuántas alturas de gema debe recorrer con translateY. */
+    movimientos.forEach(({ nodo, pasos }) => {
+        if (!nodo) return;                        // Nodo inexistente → saltar
+        nodo.style.setProperty("--pasos", pasos); // p.ej. --pasos: 1
+        nodo.classList.add("gema--cae");          // dispara @keyframes drop
+
+        /* Limpieza automática de la clase para que futuras caídas
+         * repliquen la animación (sin encadenar múltiples veces). */
+        nodo.addEventListener(
+            "animationend",
+            () => nodo.classList.remove("gema--cae"),
+            { once: true }
+        );
+    });
+}
+
+
+
