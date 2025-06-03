@@ -474,7 +474,7 @@ function actualizarTablero() {
 
                 requestAnimationFrame(() => {
                     // Activamos la transición justo después del primer layout
-                    gema.style.transition = "transform .2s ease-out";
+                    gema.style.transition = "transform 0.2s ease-out";
                     gema.style.transform  = "scale(1)";           // destino
 
                     // Limpieza: quitamos la transición cuando acabe para que
